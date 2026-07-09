@@ -45,9 +45,9 @@ export function NetworkTrafficChart() {
         const last = prev[prev.length - 1];
         newData.push({
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          inbound: Math.max(0, last.inbound + (Math.random() * 40 - 20)),
-          outbound: Math.max(0, last.outbound + (Math.random() * 30 - 15)),
-          blocked: Math.max(0, last.blocked + (Math.random() * 10 - 5)),
+          inbound: Math.max(0, Math.floor(last.inbound + (Math.random() * 40 - 20))),
+          outbound: Math.max(0, Math.floor(last.outbound + (Math.random() * 30 - 15))),
+          blocked: Math.max(0, Math.floor(last.blocked + (Math.random() * 10 - 5))),
         });
         return newData;
       });

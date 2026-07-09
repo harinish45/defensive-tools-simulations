@@ -79,14 +79,14 @@ export default function PasswordAnalyzer() {
   const results = calculateStrength(password);
 
   const getStrengthColor = (score: number) => {
-    if (score === 0) return "bg-white/10";
+    if (!password) return "bg-white/10";
     if (score < 40) return "bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]";
     if (score < 80) return "bg-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.5)]";
     return "bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)]";
   };
 
   const getStrengthText = (score: number) => {
-    if (score === 0) return "Enter a password";
+    if (!password) return "Enter a password";
     if (score < 40) return "Weak";
     if (score < 80) return "Moderate";
     return "Strong";
@@ -103,8 +103,9 @@ export default function PasswordAnalyzer() {
         <div className="md:col-span-2 space-y-6">
           <div className="glass-panel rounded-xl p-6 border border-white/10">
             <div className="mb-6">
-              <label className="block text-sm font-medium mb-2">Test Password</label>
+              <label htmlFor="password-input" className="block text-sm font-medium mb-2">Test Password</label>
               <input
+                id="password-input"
                 type="text"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
