@@ -131,6 +131,7 @@ export default function PasswordAnalyzer() {
               <div className="p-4 rounded-lg bg-background/40 border border-white/5">
                 <div className="text-sm text-muted-foreground mb-1">Estimated Time to Crack</div>
                 <div className={cn("text-xl font-bold",
+                  !password ? "text-muted-foreground" :
                   results.score < 40 ? "text-red-500" :
                   results.score < 80 ? "text-orange-500" : "text-green-500"
                 )}>

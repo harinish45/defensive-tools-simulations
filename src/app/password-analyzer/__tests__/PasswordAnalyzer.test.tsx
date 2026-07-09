@@ -12,19 +12,20 @@ describe('PasswordAnalyzer', () => {
     render(<PasswordAnalyzer />);
     const input = screen.getByPlaceholderText('Type a password to analyze...');
 
-    // Initially prompts to enter a password
+    // Initially weak
     expect(screen.getByText('Strength: Enter a password')).toBeInTheDocument();
 
     // Type weak password
     await act(async () => {
       fireEvent.change(input, { target: { value: 'password' } });
     });
+
     expect(screen.getByText('Strength: Weak')).toBeInTheDocument();
 
-    // Type moderate password
     await act(async () => {
       fireEvent.change(input, { target: { value: 'password123' } });
     });
+
     expect(screen.getByText('Strength: Moderate')).toBeInTheDocument();
   });
 });
