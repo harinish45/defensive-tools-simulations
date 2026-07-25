@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Shield, Info, Check, X } from "lucide-react";
+import { Shield, Info, Check, X, RefreshCw, Copy, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Simplified zxcvbn-style logic for educational purposes
@@ -40,6 +40,14 @@ const calculateStrength = (password: string) => {
     score -= 20;
     feedback.push("Avoid using only numbers.");
   }
+  if (/(.)\1{2,}/.test(password)) {
+    score -= 10;
+    feedback.push("Avoid repeating characters (e.g., 'aaa').");
+  }
+  if (/^(123|abc|qwerty|password|admin)/i.test(password)) {
+    score -= 20;
+    feedback.push("Avoid common password patterns.");
+  }
 
   // Calculate Entropy (approximate bits)
   let poolSize = 0;
@@ -72,10 +80,33 @@ const calculateStrength = (password: string) => {
   };
 };
 
+const generatePassword = (length: number = 16): string => {
+  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lower = "abcdefghijklmnopqrstuvwxyz";
+  const numbers = "0123456789";
+  const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+  const all = upper + lower + numbers + symbols;
+
+  let password = "";
+  // Ensure at least one of each type
+  password += upper[Math.floor(Math.random() * upper.length)];
+  password += lower[Math.floor(Math.random() * lower.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+
+  for (let i = 4; i < length; i++) {
+    password += all[Math.floor(Math.random() * all.length)];
+  }
+
+  // Shuffle the password
+  return password.split("").sort(() => Math.random() - 0.5).join("");
+};
+
 export default function PasswordAnalyzer() {
   const [password, setPassword] = useState("");
+  const [copied, setCopied] = useState(false);
 
-  // Calculate derivated state instead of using useEffect
+  // Calculate derived state
   const results = calculateStrength(password);
 
   const getStrengthColor = (score: number) => {
@@ -92,6 +123,31 @@ export default function PasswordAnalyzer() {
     return "Strong";
   };
 
+  const handleGenerate = () => {
+    const newPassword = generatePassword(16);
+    setPassword(newPassword);
+    setCopied(false);
+  };
+
+  const handleCopy = async () => {
+    if (!password) return;
+    try {
+      await navigator.clipboard.writeText(password);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea");
+      textArea.value = password;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
       <div>
@@ -103,13 +159,33 @@ export default function PasswordAnalyzer() {
         <div className="md:col-span-2 space-y-6">
           <div className="glass-panel rounded-xl p-6 border border-white/10">
             <div className="mb-6">
-              <label htmlFor="password-input" className="block text-sm font-medium mb-2">Test Password</label>
+              <div className="flex items-center justify-between mb-2">
+                <label htmlFor="password-input" className="block text-sm font-medium">Test Password</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleGenerate}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors font-medium"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Generate Strong
+                  </button>
+                  {password && (
+                    <button
+                      onClick={handleCopy}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 hover:text-foreground transition-colors font-medium"
+                    >
+                      {copied ? <CheckCircle className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy"}
+                    </button>
+                  )}
+                </div>
+              </div>
               <input
                 id="password-input"
                 type="text"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Type a password to analyze..."
+                placeholder="Type a password to analyze or click Generate..."
                 className="w-full bg-background/50 border border-white/10 rounded-lg px-4 py-3 font-mono text-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
               />
             </div>

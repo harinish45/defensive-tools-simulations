@@ -3,13 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Shield, Activity, Lock, Users, Terminal, Settings, Menu, X } from "lucide-react";
+import { Shield, Activity, Lock, Users, Terminal, Settings, Menu, X, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "SOC Dashboard", href: "/", icon: Activity, disabled: false },
   { name: "Password Analyzer", href: "/password-analyzer", icon: Lock, disabled: false },
-  { name: "Threat Hunting", href: "/threat-hunting", icon: Terminal, disabled: true },
+  { name: "Threat Hunting", href: "/threat-hunting", icon: Terminal, disabled: false },
+  { name: "Phishing Analyzer", href: "/phishing-analyzer", icon: Mail, disabled: false },
   { name: "Phishing Trainer", href: "/phishing", icon: Users, disabled: true },
   { name: "Firewall Sim", href: "/firewall", icon: Shield, disabled: true },
   { name: "Settings", href: "/settings", icon: Settings, disabled: true },
