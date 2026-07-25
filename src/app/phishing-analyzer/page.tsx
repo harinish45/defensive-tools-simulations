@@ -1,118 +1,203 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, AlertTriangle, CheckCircle, XCircle, Search, Info, Shield, Link2, Clock, Zap } from "lucide-react";
+import {
+  Mail,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Search,
+  Shield,
+  Zap,
+  Clock,
+  FlaskConical,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Corners, PageHeader, Panel, SevBadge, type Severity } from "@/components/ui/kit";
 
-interface PhishingResult {
-  score: number;
-  verdict: "safe" | "suspicious" | "phishing";
-  findings: {
-    type: string;
-    severity: "high" | "medium" | "low";
-    description: string;
-  }[];
+/* ------------------------------------------------------------------ */
+/*  Detection knowledge base                                           */
+/* ------------------------------------------------------------------ */
+
+const SUSPICIOUS_TLDS = [".tk", ".ml", ".ga", ".cf", ".gq", ".xyz", ".top", ".buzz", ".club", ".work", ".icu", ".click", ".link", ".loan"];
+const SHORTENERS = ["bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly", "is.gd", "buff.ly", "rebrand.ly", "cutt.ly", "rb.gy", "shorturl.at"];
+const FREE_MAIL = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "proton.me", "aol.com", "gmx.com"];
+const URGENCY = ["immediately", "urgent", "action required", "expires", "suspended", "verify now", "account locked", "last warning", "final notice", "act now", "within 24 hours", "final warning", "without delay"];
+const PHISH_PHRASES = ["wire transfer", "gift card", "reset your password", "confirm your identity", "unusual activity", "payment failed", "invoice attached", "click here to verify", "update your payment", "security alert", "verify your identity", "validate your credentials"];
+const BRANDS: { name: string; domains: string[] }[] = [
+  { name: "microsoft", domains: ["microsoft.com", "office.com", "live.com", "outlook.com", "windows.com"] },
+  { name: "paypal", domains: ["paypal.com"] },
+  { name: "amazon", domains: ["amazon.com"] },
+  { name: "apple", domains: ["apple.com", "icloud.com"] },
+  { name: "google", domains: ["google.com", "gmail.com"] },
+  { name: "netflix", domains: ["netflix.com"] },
+  { name: "dhl", domains: ["dhl.com"] },
+  { name: "fedex", domains: ["fedex.com"] },
+  { name: "linkedin", domains: ["linkedin.com"] },
+  { name: "dropbox", domains: ["dropbox.com"] },
+];
+
+type Finding = { type: string; detail: string; severity: Severity };
+type Result = { score: number; verdict: "safe" | "suspicious" | "phishing"; findings: Finding[] };
+
+function levenshtein(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+    }
+  }
+  return dp[m][n];
 }
 
-const SUSPICIOUS_TLDS = [".tk", ".ml", ".ga", ".cf", ".gq", ".xyz", ".top", ".buzz", ".club", ".work"];
-const SHORTENERS = ["bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly", "is.gd", "buff.ly", "rebrand.ly"];
-const URGENCY_WORDS = ["immediately", "urgent", "action required", "expires", "suspended", "verify now", "account locked", "last warning", "final notice", "act now"];
-const PHISHING_PHRASES = ["wire transfer", "gift card", "reset your password", "confirm your identity", "unusual activity", "payment failed", "invoice attached", "click here to verify", "update your payment", "security alert"];
+function domainOf(email: string): string {
+  const at = email.lastIndexOf("@");
+  if (at === -1) return "";
+  return email.slice(at + 1).replace(/[>\s]/g, "").toLowerCase();
+}
 
-const analyzeEmail = (email: string): PhishingResult => {
-  const findings: PhishingResult["findings"] = [];
+function displayNameOf(from: string): string {
+  const lt = from.indexOf("<");
+  return (lt === -1 ? from : from.slice(0, lt)).trim().toLowerCase();
+}
+
+function analyze(sender: string, replyTo: string, subject: string, body: string): Result {
+  const findings: Finding[] = [];
   let score = 0;
-  const lowerEmail = email.toLowerCase();
+  const full = `${subject} ${body}`.toLowerCase();
+  const senderDomain = domainOf(sender);
+  const displayName = displayNameOf(sender);
 
-  // Check for suspicious TLDs
-  const urlRegex = /https?:\/\/([^\s/]+)|www\.([^\s/]+)/gi;
-  const urls = email.match(urlRegex) || [];
+  // URL analysis
+  const urls = body.match(/https?:\/\/[^\s<>"]+/gi) || [];
   urls.forEach((url) => {
-    const domain = url.replace(/https?:\/\//, "").replace(/www\./, "").split("/")[0];
-    if (SUSPICIOUS_TLDS.some((tld) => domain.endsWith(tld))) {
+    const dom = url.split("//")[1]?.split("/")[0]?.toLowerCase() ?? "";
+    if (SUSPICIOUS_TLDS.some((t) => dom.endsWith(t))) {
       score += 25;
-      findings.push({ type: "Suspicious Domain", severity: "high", description: `Domain "${domain}" uses a suspicious TLD commonly associated with phishing.` });
+      findings.push({ type: "Suspicious link TLD", detail: dom, severity: "high" });
     }
-    if (SHORTENERS.some((s) => domain.includes(s))) {
+    if (SHORTENERS.some((s) => dom.includes(s))) {
       score += 20;
-      findings.push({ type: "URL Shortener", severity: "high", description: `URL shortener "${domain}" detected. Attackers use these to hide malicious destinations.` });
+      findings.push({ type: "URL shortener", detail: dom, severity: "high" });
     }
-    if (domain.includes("@") || domain.includes("-login") || domain.includes("-verify") || domain.includes("-secure")) {
-      score += 15;
-      findings.push({ type: "Deceptive URL", severity: "medium", description: `URL "${domain}" contains deceptive patterns mimicking legitimate services.` });
+    if (/^\d+\.\d+\.\d+\.\d+/.test(dom)) {
+      score += 20;
+      findings.push({ type: "Raw IP in link", detail: dom, severity: "high" });
     }
   });
 
-  // Check for urgency language
-  URGENCY_WORDS.forEach((word) => {
-    if (lowerEmail.includes(word)) {
+  if (/xn--/.test(body.toLowerCase())) {
+    score += 20;
+    findings.push({ type: "Punycode domain", detail: "xn-- homograph", severity: "high" });
+  }
+
+  URGENCY.forEach((w) => {
+    if (full.includes(w)) {
+      score += 8;
+      findings.push({ type: "Urgency language", detail: `\u201C${w}\u201D`, severity: "medium" });
+    }
+  });
+  PHISH_PHRASES.forEach((p) => {
+    if (full.includes(p)) {
+      score += 12;
+      findings.push({ type: "Phishing phrase", detail: `\u201C${p}\u201D`, severity: "high" });
+    }
+  });
+
+  // Sender domain reputation
+  if (senderDomain) {
+    if (SUSPICIOUS_TLDS.some((t) => senderDomain.endsWith(t))) {
+      score += 20;
+      findings.push({ type: "Suspicious sender TLD", detail: senderDomain, severity: "high" });
+    }
+    if (FREE_MAIL.includes(senderDomain)) {
       score += 10;
-      findings.push({ type: "Urgency Language", severity: "medium", description: `Phrase "${word}" creates artificial urgency to pressure victims into acting quickly.` });
+      findings.push({ type: "Free-mail sender", detail: senderDomain, severity: "low" });
     }
-  });
+    // Brand impersonation / lookalike
+    const haystack = `${subject} ${displayName}`.toLowerCase();
+    for (const brand of BRANDS) {
+      if (haystack.includes(brand.name) && !brand.domains.includes(senderDomain)) {
+        const lookalike = brand.domains.some((d) => levenshtein(senderDomain, d) <= 2);
+        if (lookalike) {
+          score += 30;
+          findings.push({ type: "Lookalike domain", detail: `${senderDomain} ≈ ${brand.domains[0]}`, severity: "critical" });
+        } else {
+          score += 18;
+          findings.push({ type: "Brand impersonation", detail: `${brand.name} → ${senderDomain}`, severity: "high" });
+        }
+        break;
+      }
+    }
+  }
 
-  // Check for phishing phrases
-  PHISHING_PHRASES.forEach((phrase) => {
-    if (lowerEmail.includes(phrase)) {
+  // Reply-To mismatch
+  if (replyTo && senderDomain) {
+    const rdom = domainOf(replyTo);
+    if (rdom && rdom !== senderDomain) {
       score += 15;
-      findings.push({ type: "Phishing Phrase", severity: "high", description: `Phrase "${phrase}" is commonly used in phishing attacks to steal credentials or money.` });
-    }
-  });
-
-  // Check for excessive punctuation/caps
-  if ((email.match(/!/g) || []).length > 3) {
-    score += 10;
-    findings.push({ type: "Excessive Punctuation", severity: "low", description: "Multiple exclamation marks detected. Legitimate organizations rarely use excessive punctuation." });
-  }
-  if ((email.match(/[A-Z]{5,}/g) || []).length > 2) {
-    score += 10;
-    findings.push({ type: "Excessive Caps", severity: "low", description: "Multiple ALL-CAPS words detected, a common tactic to create urgency." });
-  }
-
-  // Check for sender mismatch patterns
-  const fromMatch = email.match(/from:\s*([\w.]+)\s*<([^>]+)>/i);
-  if (fromMatch) {
-    const displayName = fromMatch[1].toLowerCase();
-    const emailAddr = fromMatch[2].toLowerCase();
-    const emailDomain = emailAddr.split("@")[1] || "";
-    if (displayName && emailDomain && !emailDomain.includes(displayName) && !displayName.includes(emailDomain.split(".")[0])) {
-      score += 20;
-      findings.push({ type: "Sender Mismatch", severity: "high", description: `Display name "${fromMatch[1]}" doesn't match email domain "${emailDomain}". This is a classic spoofing technique.` });
+      findings.push({ type: "Reply-To mismatch", detail: `${senderDomain} → ${rdom}`, severity: "medium" });
     }
   }
 
-  // Check for attachment mentions
-  if (lowerEmail.includes(".exe") || lowerEmail.includes(".zip") || lowerEmail.includes("attachment") || lowerEmail.includes("download")) {
-    score += 15;
-    findings.push({ type: "Suspicious Attachment", severity: "medium", description: "References to attachments or downloads detected. Phishing emails often deliver malware this way." });
+  if (/dear (customer|user|member|client)/.test(full)) {
+    score += 8;
+    findings.push({ type: "Generic greeting", detail: "dear customer", severity: "low" });
   }
 
-  // Determine verdict
-  const verdict: PhishingResult["verdict"] = score >= 50 ? "phishing" : score >= 20 ? "suspicious" : "safe";
+  score = Math.min(100, score);
+  const verdict = score >= 50 ? "phishing" : score >= 20 ? "suspicious" : "safe";
+  return { score, verdict, findings };
+}
 
-  return { score: Math.min(100, score), verdict, findings };
-};
+/* ------------------------------------------------------------------ */
+/*  Samples                                                            */
+/* ------------------------------------------------------------------ */
 
-const SAMPLE_PHISHING = `From: PayPal Security <security@paypal-verify-alert.tk>
-Subject: URGENT: Your account has been suspended!
-
-Dear Customer,
+const SAMPLES = {
+  phishing: {
+    label: "Credential Phish",
+    sender: "PayPal Security <security@paypal-verify-alert.tk>",
+    replyTo: "helpdesk221@gmail.com",
+    subject: "URGENT: Your account has been suspended!",
+    body: `Dear Customer,
 
 We detected unusual activity on your account. You must verify your identity IMMEDIATELY or your account will be permanently locked.
 
 Click here to verify: http://bit.ly/paypal-secure-login
 
-This is your FINAL WARNING. Act now to avoid account suspension.
-
-Please update your payment information and reset your password.
+This is your FINAL WARNING. Act now to avoid suspension. Please update your payment information and reset your password.
 
 Regards,
-PayPal Security Team`;
+PayPal Security Team`,
+  },
+  lookalike: {
+    label: "Lookalike Domain",
+    sender: "Microsoft 365 <admin@rnicrosoft-secure.com>",
+    replyTo: "",
+    subject: "Action required: verify your mailbox",
+    body: `Dear Customer,
 
-const SAMPLE_SAFE = `From: GitHub <noreply@github.com>
-Subject: [GitHub] Your weekly digest
+Your mailbox will be suspended within 24 hours due to unusual activity. Verify now to keep access.
 
-Hi there,
+Sign in: http://198.51.100.7/login
+
+Microsoft 365 Team`,
+  },
+  safe: {
+    label: "Legitimate",
+    sender: "GitHub <noreply@github.com>",
+    replyTo: "",
+    subject: "[GitHub] Your weekly digest",
+    body: `Hi there,
 
 Here's your weekly activity summary:
 - 3 repositories updated
@@ -122,158 +207,191 @@ Here's your weekly activity summary:
 View your dashboard at https://github.com/dashboard
 
 Thanks,
-The GitHub Team`;
+The GitHub Team`,
+  },
+};
+
+type SampleKey = keyof typeof SAMPLES;
+
+/* ------------------------------------------------------------------ */
+/*  Page                                                               */
+/* ------------------------------------------------------------------ */
 
 export default function PhishingAnalyzer() {
-  const [email, setEmail] = useState("");
-  const [result, setResult] = useState<PhishingResult | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [sender, setSender] = useState("");
+  const [replyTo, setReplyTo] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [result, setResult] = useState<Result | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const loadSample = (key: SampleKey) => {
+    const s = SAMPLES[key];
+    setSender(s.sender);
+    setReplyTo(s.replyTo);
+    setSubject(s.subject);
+    setBody(s.body);
+    setResult(null);
+  };
 
   const handleAnalyze = () => {
-    if (!email.trim()) return;
-    setIsAnalyzing(true);
+    if (!sender && !body) return;
+    setAnalyzing(true);
+    setResult(null);
     setTimeout(() => {
-      setResult(analyzeEmail(email));
-      setIsAnalyzing(false);
-    }, 1200);
+      setResult(analyze(sender, replyTo, subject, body));
+      setAnalyzing(false);
+    }, 900);
   };
 
-  const getVerdictConfig = (verdict: string) => {
-    switch (verdict) {
-      case "phishing": return { icon: XCircle, color: "text-red-500", bg: "bg-red-500/10 border-red-500/30", label: "Likely Phishing" };
-      case "suspicious": return { icon: AlertTriangle, color: "text-orange-500", bg: "bg-orange-500/10 border-orange-500/30", label: "Suspicious" };
-      default: return { icon: CheckCircle, color: "text-green-500", bg: "bg-green-500/10 border-green-500/30", label: "Likely Safe" };
-    }
-  };
+  const verdictCfg =
+    result?.verdict === "phishing"
+      ? { icon: XCircle, color: "text-red-400", ring: "border-red-500/30 bg-red-500/10", label: "Likely Phishing" }
+      : result?.verdict === "suspicious"
+      ? { icon: AlertTriangle, color: "text-orange-400", ring: "border-orange-500/30 bg-orange-500/10", label: "Suspicious" }
+      : { icon: CheckCircle, color: "text-emerald-400", ring: "border-emerald-500/30 bg-emerald-500/10", label: "Likely Safe" };
+
+  const inputCls =
+    "w-full rounded-lg border border-white/10 bg-background/50 px-3 py-2.5 text-sm transition-all placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/40";
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-          <Mail className="w-7 h-7 text-primary" />
-          Phishing Email Analyzer
-        </h1>
-        <p className="text-muted-foreground">Paste an email to detect phishing indicators, suspicious links, and social engineering tactics.</p>
-      </div>
+    <div className="animate-rise space-y-6">
+      <PageHeader
+        icon={Mail}
+        title="Phishing Email Analyzer"
+        desc="Dissect a suspicious email for social-engineering tactics, lookalike domains, deceptive links and impersonation. Weighted heuristics produce a threat verdict — all offline."
+        badge="13 heuristics"
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Input Panel */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Input */}
         <div className="space-y-4">
-          <div className="glass-panel rounded-xl p-6 border border-white/10">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Search className="w-4 h-4 text-primary" />
-                Email Input
-              </h3>
-              <div className="flex gap-2">
-                <button onClick={() => { setEmail(SAMPLE_PHISHING); setResult(null); }} className="text-xs px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors">
-                  Load Phishing Sample
-                </button>
-                <button onClick={() => { setEmail(SAMPLE_SAFE); setResult(null); }} className="text-xs px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors">
-                  Load Safe Sample
-                </button>
+          <Panel
+            title="Email Input"
+            tag={
+              <div className="flex gap-1.5">
+                {(Object.keys(SAMPLES) as SampleKey[]).map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => loadSample(k)}
+                    className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+                  >
+                    {SAMPLES[k].label}
+                  </button>
+                ))}
               </div>
+            }
+          >
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">From</label>
+                <input value={sender} onChange={(e) => setSender(e.target.value)} placeholder="Name <address@domain>" className={cn(inputCls, "font-mono")} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Reply-To (optional)</label>
+                <input value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="address@domain" className={cn(inputCls, "font-mono")} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Subject</label>
+                <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Email subject line" className={inputCls} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">Body</label>
+                <textarea
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  placeholder="Paste the full email body, including any links…"
+                  rows={9}
+                  className={cn(inputCls, "resize-none font-mono text-[13px]")}
+                />
+              </div>
+              <button
+                onClick={handleAnalyze}
+                disabled={(!sender && !body) || analyzing}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {analyzing ? <Clock className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                {analyzing ? "Analyzing…" : "Analyze Email"}
+              </button>
             </div>
-            <textarea
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setResult(null); }}
-              placeholder="Paste the full email content here (headers, body, links...)"
-              className="w-full h-64 bg-background/50 border border-white/10 rounded-lg px-4 py-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all resize-none"
-            />
-            <button
-              onClick={handleAnalyze}
-              disabled={!email.trim() || isAnalyzing}
-              className="mt-4 w-full px-4 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(var(--primary),0.3)]"
-            >
-              {isAnalyzing ? (
-                <><Clock className="w-4 h-4 animate-spin" /> Analyzing...</>
-              ) : (
-                <><Zap className="w-4 h-4" /> Analyze Email</>
-              )}
-            </button>
-          </div>
+          </Panel>
         </div>
 
-        {/* Results Panel */}
+        {/* Results */}
         <div className="space-y-4">
           {result ? (
             <>
-              {/* Verdict Card */}
-              <div className={cn("glass-panel rounded-xl p-6 border", getVerdictConfig(result.verdict).bg)}>
+              <div className={cn("relative overflow-hidden rounded-xl border p-6 backdrop-blur-lg", verdictCfg.ring)}>
+                <Corners />
                 <div className="flex items-center gap-4">
-                  {(() => { const { icon: Icon, color } = getVerdictConfig(result.verdict); return <Icon className={cn("w-10 h-10", color)} />; })()}
+                  <verdictCfg.icon className={cn("h-11 w-11", verdictCfg.color)} />
                   <div>
-                    <h3 className={cn("text-xl font-bold", getVerdictConfig(result.verdict).color)}>
-                      {getVerdictConfig(result.verdict).label}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">Threat Score: {result.score}/100</p>
+                    <div className={cn("font-grotesk text-xl font-bold", verdictCfg.color)}>{verdictCfg.label}</div>
+                    <div className="text-sm text-muted-foreground">Threat score {result.score}/100</div>
                   </div>
                 </div>
-                <div className="mt-4 h-2 w-full bg-background rounded-full overflow-hidden">
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-background/60">
                   <div
-                    className={cn("h-full rounded-full transition-all duration-700",
-                      result.verdict === "phishing" ? "bg-red-500" : result.verdict === "suspicious" ? "bg-orange-500" : "bg-green-500"
+                    className={cn(
+                      "h-full rounded-full transition-all duration-700",
+                      result.verdict === "phishing" ? "bg-red-500" : result.verdict === "suspicious" ? "bg-orange-500" : "bg-emerald-500"
                     )}
                     style={{ width: `${result.score}%` }}
                   />
                 </div>
               </div>
 
-              {/* Findings */}
-              <div className="glass-panel rounded-xl p-6 border border-white/10">
-                <h3 className="font-semibold mb-4 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-primary" />
-                  Findings ({result.findings.length})
-                </h3>
+              <Panel title={`Findings (${result.findings.length})`}>
                 {result.findings.length === 0 ? (
-                  <p className="text-sm text-green-400 flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4" /> No phishing indicators detected.
+                  <p className="flex items-center gap-2 text-sm text-emerald-400">
+                    <CheckCircle className="h-4 w-4" /> No phishing indicators detected.
                   </p>
                 ) : (
-                  <ul className="space-y-3 max-h-64 overflow-y-auto pr-2">
-                    {result.findings.map((finding, i) => (
-                      <li key={i} className="p-3 rounded-lg bg-background/40 border border-white/5">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={cn("text-xs px-2 py-0.5 rounded font-medium",
-                            finding.severity === "high" ? "bg-red-500/20 text-red-400" :
-                            finding.severity === "medium" ? "bg-orange-500/20 text-orange-400" :
-                            "bg-yellow-500/20 text-yellow-400"
-                          )}>
-                            {finding.severity.toUpperCase()}
-                          </span>
-                          <span className="text-sm font-medium">{finding.type}</span>
+                  <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                    {result.findings.map((f, i) => (
+                      <li key={i} className="rounded-lg border border-white/5 bg-background/40 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">{f.type}</span>
+                          <SevBadge level={f.severity} />
                         </div>
-                        <p className="text-xs text-muted-foreground">{finding.description}</p>
+                        <div className="mt-1 break-words font-mono text-[11px] text-muted-foreground">{f.detail}</div>
                       </li>
                     ))}
                   </ul>
                 )}
-              </div>
+              </Panel>
             </>
           ) : (
-            <div className="glass-panel rounded-xl p-12 border border-white/10 flex flex-col items-center justify-center text-center">
-              <Shield className="w-12 h-12 text-muted-foreground/30 mb-4" />
-              <h3 className="font-semibold text-muted-foreground">No Analysis Yet</h3>
-              <p className="text-sm text-muted-foreground/70 mt-2 max-w-xs">
-                Paste an email on the left and click "Analyze Email" to detect phishing indicators.
+            <Panel className="min-h-[280px]" bodyClassName="flex h-full min-h-[240px] flex-col items-center justify-center text-center">
+              <FlaskConical className="mb-4 h-12 w-12 text-muted-foreground/30" />
+              <h3 className="font-grotesk font-semibold text-muted-foreground">Awaiting Analysis</h3>
+              <p className="mt-2 max-w-xs text-sm text-muted-foreground/70">
+                Fill in the email fields (or load a sample) and click Analyze to see a full breakdown.
               </p>
-            </div>
+            </Panel>
           )}
 
-          {/* Educational Tips */}
-          <div className="glass-panel rounded-xl p-6 border border-white/10">
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <Info className="w-4 h-4 text-primary" />
-              What We Check
-            </h3>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-center gap-2"><Link2 className="w-3 h-3 text-primary" /> Suspicious domains & URL shorteners</li>
-              <li className="flex items-center gap-2"><AlertTriangle className="w-3 h-3 text-primary" /> Urgency & pressure language</li>
-              <li className="flex items-center gap-2"><Mail className="w-3 h-3 text-primary" /> Sender display name mismatch</li>
-              <li className="flex items-center gap-2"><Shield className="w-3 h-3 text-primary" /> Known phishing phrases & patterns</li>
-              <li className="flex items-center gap-2"><XCircle className="w-3 h-3 text-primary" /> Suspicious attachments & downloads</li>
+          <Panel title="What We Check">
+            <ul className="grid grid-cols-1 gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+              {[
+                "Lookalike domains (Levenshtein)",
+                "Brand impersonation",
+                "URL shorteners & raw IPs",
+                "Suspicious TLDs & punycode",
+                "Reply-To / From mismatch",
+                "Urgency & pressure language",
+                "Credential-harvest phrases",
+                "Generic greetings",
+              ].map((t) => (
+                <li key={t} className="flex items-center gap-2">
+                  <Search className="h-3 w-3 text-primary" /> {t}
+                </li>
+              ))}
             </ul>
-          </div>
+            <p className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+              <Shield className="h-3.5 w-3.5 text-primary" /> Heuristic & offline — verdicts are guidance, not ground truth.
+            </p>
+          </Panel>
         </div>
       </div>
     </div>
