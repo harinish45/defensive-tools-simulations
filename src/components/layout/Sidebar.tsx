@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,7 +10,6 @@ import {
   Mail,
   ScrollText,
   Network,
-  Users,
   Shield,
   Menu,
   X,
@@ -22,7 +21,6 @@ type NavItem = {
   name: string;
   href: string;
   icon: typeof Activity;
-  disabled?: boolean;
 };
 
 type NavGroup = { label: string; items: NavItem[] };
@@ -48,36 +46,36 @@ const groups: NavGroup[] = [
     label: "Network",
     items: [{ name: "Network Tools", href: "/network-tools", icon: Network }],
   },
-  {
-    label: "Coming Soon",
-    items: [
-      { name: "Phishing Trainer", href: "/phishing", icon: Users, disabled: true },
-      { name: "Firewall Sim", href: "/firewall", icon: Shield, disabled: true },
-    ],
-  },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
     <>
-      {/* Mobile toggle */}
-      <div className="fixed left-4 top-4 z-50 md:hidden">
-        <button
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Toggle navigation"
-          className="glass rounded-lg p-2 transition-colors hover:bg-white/10"
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
-      </div>
+      {/* Mobile toggle - rendered only after mount to prevent hydration mismatch from browser extensions */}
+      {mounted && (
+        <div className="fixed left-4 top-4 z-50 md:hidden">
+          <button
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Toggle navigation"
+            className="glass rounded-lg p-2 transition-colors hover:bg-white/10"
+          >
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
+      )}
 
       {/* Mobile overlay */}
-      {open && (
+      {open && mounted && (
         <div
           className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden"
           onClick={() => setOpen(false)}
@@ -114,23 +112,6 @@ export function Sidebar() {
                 {group.items.map((item) => {
                   const active = isActive(item.href);
 
-                  if (item.disabled) {
-                    return (
-                      <div
-                        key={item.name}
-                        className="flex cursor-not-allowed items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground/50"
-                      >
-                        <div className="flex items-center gap-3">
-                          <item.icon className="h-4 w-4 opacity-50" />
-                          {item.name}
-                        </div>
-                        <span className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] tracking-wider text-muted-foreground/70">
-                          SOON
-                        </span>
-                      </div>
-                    );
-                  }
-
                   return (
                     <Link
                       key={item.name}
@@ -162,7 +143,7 @@ export function Sidebar() {
             <LiveDot />
             <div className="flex-1">
               <div className="text-xs font-medium text-foreground">System Online</div>
-              <div className="font-mono text-[10px] text-muted-foreground">v2.0.0 · simulation</div>
+              <div className="font-mono text-[10px] text-muted-foreground">v2.1.0 · production</div>
             </div>
           </div>
         </div>

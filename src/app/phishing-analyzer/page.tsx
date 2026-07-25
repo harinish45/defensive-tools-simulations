@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Mail,
   AlertTriangle,
@@ -11,13 +11,10 @@ import {
   Zap,
   Clock,
   FlaskConical,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Corners, PageHeader, Panel, SevBadge, type Severity } from "@/components/ui/kit";
-
-/* ------------------------------------------------------------------ */
-/*  Detection knowledge base                                           */
-/* ------------------------------------------------------------------ */
 
 const SUSPICIOUS_TLDS = [".tk", ".ml", ".ga", ".cf", ".gq", ".xyz", ".top", ".buzz", ".club", ".work", ".icu", ".click", ".link", ".loan"];
 const SHORTENERS = ["bit.ly", "tinyurl.com", "goo.gl", "t.co", "ow.ly", "is.gd", "buff.ly", "rebrand.ly", "cutt.ly", "rb.gy", "shorturl.at"];
@@ -76,7 +73,6 @@ function analyze(sender: string, replyTo: string, subject: string, body: string)
   const senderDomain = domainOf(sender);
   const displayName = displayNameOf(sender);
 
-  // URL analysis
   const urls = body.match(/https?:\/\/[^\s<>"]+/gi) || [];
   urls.forEach((url) => {
     const dom = url.split("//")[1]?.split("/")[0]?.toLowerCase() ?? "";
@@ -102,17 +98,16 @@ function analyze(sender: string, replyTo: string, subject: string, body: string)
   URGENCY.forEach((w) => {
     if (full.includes(w)) {
       score += 8;
-      findings.push({ type: "Urgency language", detail: `\u201C${w}\u201D`, severity: "medium" });
+      findings.push({ type: "Urgency language", detail: `“${w}”`, severity: "medium" });
     }
   });
   PHISH_PHRASES.forEach((p) => {
     if (full.includes(p)) {
       score += 12;
-      findings.push({ type: "Phishing phrase", detail: `\u201C${p}\u201D`, severity: "high" });
+      findings.push({ type: "Phishing phrase", detail: `“${p}”`, severity: "high" });
     }
   });
 
-  // Sender domain reputation
   if (senderDomain) {
     if (SUSPICIOUS_TLDS.some((t) => senderDomain.endsWith(t))) {
       score += 20;
@@ -122,7 +117,6 @@ function analyze(sender: string, replyTo: string, subject: string, body: string)
       score += 10;
       findings.push({ type: "Free-mail sender", detail: senderDomain, severity: "low" });
     }
-    // Brand impersonation / lookalike
     const haystack = `${subject} ${displayName}`.toLowerCase();
     for (const brand of BRANDS) {
       if (haystack.includes(brand.name) && !brand.domains.includes(senderDomain)) {
@@ -139,7 +133,6 @@ function analyze(sender: string, replyTo: string, subject: string, body: string)
     }
   }
 
-  // Reply-To mismatch
   if (replyTo && senderDomain) {
     const rdom = domainOf(replyTo);
     if (rdom && rdom !== senderDomain) {
@@ -158,64 +151,31 @@ function analyze(sender: string, replyTo: string, subject: string, body: string)
   return { score, verdict, findings };
 }
 
-/* ------------------------------------------------------------------ */
-/*  Samples                                                            */
-/* ------------------------------------------------------------------ */
-
 const SAMPLES = {
   phishing: {
     label: "Credential Phish",
     sender: "PayPal Security <security@paypal-verify-alert.tk>",
     replyTo: "helpdesk221@gmail.com",
     subject: "URGENT: Your account has been suspended!",
-    body: `Dear Customer,
-
-We detected unusual activity on your account. You must verify your identity IMMEDIATELY or your account will be permanently locked.
-
-Click here to verify: http://bit.ly/paypal-secure-login
-
-This is your FINAL WARNING. Act now to avoid suspension. Please update your payment information and reset your password.
-
-Regards,
-PayPal Security Team`,
+    body: `Dear Customer,\n\nWe detected unusual activity on your account. You must verify your identity IMMEDIATELY or your account will be permanently locked.\n\nClick here to verify: http://bit.ly/paypal-secure-login\n\nThis is your FINAL WARNING. Act now to avoid suspension. Please update your payment information and reset your password.\n\nRegards,\nPayPal Security Team`,
   },
   lookalike: {
     label: "Lookalike Domain",
     sender: "Microsoft 365 <admin@rnicrosoft-secure.com>",
     replyTo: "",
     subject: "Action required: verify your mailbox",
-    body: `Dear Customer,
-
-Your mailbox will be suspended within 24 hours due to unusual activity. Verify now to keep access.
-
-Sign in: http://198.51.100.7/login
-
-Microsoft 365 Team`,
+    body: `Dear Customer,\n\nYour mailbox will be suspended within 24 hours due to unusual activity. Verify now to keep access.\n\nSign in: http://198.51.100.7/login\n\nMicrosoft 365 Team`,
   },
   safe: {
     label: "Legitimate",
     sender: "GitHub <noreply@github.com>",
     replyTo: "",
     subject: "[GitHub] Your weekly digest",
-    body: `Hi there,
-
-Here's your weekly activity summary:
-- 3 repositories updated
-- 2 pull requests merged
-- 1 new follower
-
-View your dashboard at https://github.com/dashboard
-
-Thanks,
-The GitHub Team`,
+    body: `Hi there,\n\nHere's your weekly activity summary:\n- 3 repositories updated\n- 2 pull requests merged\n- 1 new follower\n\nView your dashboard at https://github.com/dashboard\n\nThanks,\nThe GitHub Team`,
   },
 };
 
 type SampleKey = keyof typeof SAMPLES;
-
-/* ------------------------------------------------------------------ */
-/*  Page                                                               */
-/* ------------------------------------------------------------------ */
 
 export default function PhishingAnalyzer() {
   const [sender, setSender] = useState("");
@@ -224,6 +184,9 @@ export default function PhishingAnalyzer() {
   const [body, setBody] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [liveUrlCheck, setLiveUrlCheck] = useState<{ url: string; title: string; status: "loading" | "success" | "error" } | null>(null);
+
+  const detectedUrls = useMemo(() => body.match(/https?:\/\/[^\s<>"]+/gi) || [], [body]);
 
   const loadSample = (key: SampleKey) => {
     const s = SAMPLES[key];
@@ -232,16 +195,32 @@ export default function PhishingAnalyzer() {
     setSubject(s.subject);
     setBody(s.body);
     setResult(null);
+    setLiveUrlCheck(null);
   };
 
   const handleAnalyze = () => {
     if (!sender && !body) return;
     setAnalyzing(true);
     setResult(null);
+    setLiveUrlCheck(null);
     setTimeout(() => {
       setResult(analyze(sender, replyTo, subject, body));
       setAnalyzing(false);
     }, 900);
+  };
+
+  const checkLiveUrl = async (url: string) => {
+    setLiveUrlCheck({ url, title: "Fetching live content...", status: "loading" });
+    try {
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(5000) });
+      const html = await res.text();
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      const title = titleMatch ? titleMatch[1].trim() : "No Title Found";
+      setLiveUrlCheck({ url, title, status: "success" });
+    } catch (e) {
+      setLiveUrlCheck({ url, title: "Fetch Blocked (CORS/Network/Error)", status: "error" });
+    }
   };
 
   const verdictCfg =
@@ -259,12 +238,11 @@ export default function PhishingAnalyzer() {
       <PageHeader
         icon={Mail}
         title="Phishing Email Analyzer"
-        desc="Dissect a suspicious email for social-engineering tactics, lookalike domains, deceptive links and impersonation. Weighted heuristics produce a threat verdict — all offline."
-        badge="13 heuristics"
+        desc="Dissect a suspicious email for social-engineering tactics, lookalike domains, deceptive links and impersonation. Weighted heuristics + live URL fetching produce a threat verdict."
+        badge="13+ heuristics + live"
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Input */}
         <div className="space-y-4">
           <Panel
             title="Email Input"
@@ -317,7 +295,6 @@ export default function PhishingAnalyzer() {
           </Panel>
         </div>
 
-        {/* Results */}
         <div className="space-y-4">
           {result ? (
             <>
@@ -360,6 +337,41 @@ export default function PhishingAnalyzer() {
                   </ul>
                 )}
               </Panel>
+
+              {detectedUrls.length > 0 && (
+                <Panel title="Live URL Preview">
+                  <div className="space-y-2">
+                    {Array.from(new Set(detectedUrls)).slice(0, 3).map((url, i) => (
+                      <div key={i} className="rounded-lg border border-white/5 bg-background/40 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <code className="break-all font-mono text-xs text-primary">{url}</code>
+                          <button
+                            onClick={() => checkLiveUrl(url)}
+                            disabled={liveUrlCheck?.url === url && liveUrlCheck.status === "loading"}
+                            className="rounded bg-white/5 px-2 py-1 text-[10px] font-medium transition-colors hover:bg-white/10 disabled:opacity-50"
+                          >
+                            Check Live
+                          </button>
+                        </div>
+                        {liveUrlCheck?.url === url && (
+                          <div className="mt-2 flex items-start gap-2 text-xs">
+                            <Globe className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
+                            <div>
+                              <span className="text-muted-foreground">Title: </span>
+                              <span className={cn(
+                                "font-medium",
+                                liveUrlCheck.status === "error" ? "text-red-400" : "text-emerald-400"
+                              )}>
+                                {liveUrlCheck.title}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Panel>
+              )}
             </>
           ) : (
             <Panel className="min-h-[280px]" bodyClassName="flex h-full min-h-[240px] flex-col items-center justify-center text-center">
@@ -381,7 +393,7 @@ export default function PhishingAnalyzer() {
                 "Reply-To / From mismatch",
                 "Urgency & pressure language",
                 "Credential-harvest phrases",
-                "Generic greetings",
+                "Live URL title fetching",
               ].map((t) => (
                 <li key={t} className="flex items-center gap-2">
                   <Search className="h-3 w-3 text-primary" /> {t}
@@ -389,7 +401,7 @@ export default function PhishingAnalyzer() {
               ))}
             </ul>
             <p className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
-              <Shield className="h-3.5 w-3.5 text-primary" /> Heuristic & offline — verdicts are guidance, not ground truth.
+              <Shield className="h-3.5 w-3.5 text-primary" /> Heuristic + live fetch — verdicts are guidance, not ground truth.
             </p>
           </Panel>
         </div>
