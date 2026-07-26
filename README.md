@@ -45,6 +45,12 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 All core analysis (passwords, logs, phishing heuristics, subnet math) runs **entirely in your browser**. No data is sent to any backend, no API keys are required, and nothing is logged. Live threat hunting uses public, keyless APIs (Google DNS, CIRCL) or free-tier geolocation (ipapi.co).
 
+## 🛡️ Stability & Production Ready
+
+- **Crash-Proof**: All external API calls are wrapped in `AbortController` timeouts to prevent Node.js process crashes (502 Bad Gateway) in cloud environments.
+- **Hydration Safe**: Benign browser extension injections (e.g., password managers) are safely ignored to prevent React hydration mismatches.
+- **Zero Mocks**: Every tool performs real computation or queries live, public intelligence sources.
+
 ## 📜 License
 
 MIT License. Built for educational and authorized defensive security use.

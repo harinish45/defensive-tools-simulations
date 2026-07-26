@@ -47,7 +47,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`dark ${sans.variable} ${mono.variable} ${grotesk.variable}`}>
+    <html 
+      lang="en" 
+      className={`dark ${sans.variable} ${mono.variable} ${grotesk.variable}`}
+      suppressHydrationWarning
+    >
       <body className="flex h-screen overflow-hidden font-sans antialiased selection:bg-primary/30">
         <Sidebar />
         <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
