@@ -31,7 +31,6 @@ export default function ThreatHuntingPage() {
         setError('Invalid input. Please enter a valid IPv4 address or domain name.');
       }
     } catch (err: any) {
-      // GRACEFUL DEGRADATION: Shows error to user instead of crashing the server
       setError(err.message || 'Failed to fetch threat intelligence. Service may be temporarily unavailable.');
     } finally {
       setLoading(false);
@@ -41,7 +40,7 @@ export default function ThreatHuntingPage() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold font-display text-white">Threat Hunting</h1>
+        <h1 className="text-3xl font-bold font-grotesk text-white">Threat Hunting</h1>
         <span className="px-3 py-1 text-xs font-mono rounded bg-green-500/20 text-green-400 border border-green-500/30">
           ● LIVE API
         </span>

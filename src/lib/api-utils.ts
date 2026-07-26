@@ -8,7 +8,7 @@ export async function fetchWithTimeout(url: string, options: RequestInit = {}, t
       ...options,
       signal: controller.signal,
       headers: {
-        'User-Agent': 'DefensiveTools/1.0 (Educational Security Scanner)',
+        'User-Agent': 'DefenseOS/1.0 (Educational Security Scanner)',
         ...options.headers,
       },
     });
