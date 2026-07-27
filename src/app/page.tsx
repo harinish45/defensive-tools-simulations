@@ -31,8 +31,17 @@ export default function DashboardPage() {
         const res = await fetch('/api/cves');
         if (!res.ok) throw new Error('Failed to fetch');
         const data = await res.json();
-        setCves(data.slice(0, 10)); // Latest 10
-      } catch (err) {
+        
+        // Normalize data to ensure 'id' always exists for React keys
+        const normalizedData = data.slice(0, 10).map((item: any, index: number) => ({
+          id: item.id || item.CVE_id || item.cve || `cve-fallback-${index}`,
+          summary: item.summary || item.title || 'No description available.',
+          cvss: item.cvss || item.cvss_score || 0,
+          publish_date: item.published || item.publish_date || new Date().toISOString(),
+        }));
+        
+        setCves(normalizedData);
+      } catch (err: any) {
         setError('Unable to reach live CVE feed. Check API route.');
       } finally {
         setLoading(false);
@@ -62,7 +71,7 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-bold text-white">Security Intelligence Dashboard</h1>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-24 bg-zinc-800 rounded-lg animate-pulse" />
+            <div key={`skeleton-${i}`} className="h-24 bg-zinc-800 rounded-lg animate-pulse" />
           ))}
         </div>
         <div className="h-64 bg-zinc-800 rounded-lg animate-pulse" />
@@ -130,13 +139,13 @@ export default function DashboardPage() {
           {!loading && cves.length === 0 && !error && (
             <div className="p-4 text-zinc-400 font-mono text-sm">No recent vulnerabilities found.</div>
           )}
-          {cves.map((cve) => {
+          {cves.map((cve, index) => {
             const isCritical = cve.summary?.toLowerCase().includes('critical') || (cve.cvss && cve.cvss >= 9.0);
             const severity = isCritical ? 'CRITICAL' : 'MEDIUM';
             const color = isCritical ? 'text-red-400 bg-red-500/10 border-red-500/30' : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30';
             
             return (
-              <div key={cve.id} className="p-4 hover:bg-zinc-800/50 transition-colors">
+              <div key={cve.id || `cve-${index}`} className="p-4 hover:bg-zinc-800/50 transition-colors">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -148,7 +157,7 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <p className="text-zinc-300 text-sm truncate">
-                      {cve.summary || 'No description available.'}
+                      {cve.summary}
                     </p>
                   </div>
                   <div className="text-xs font-mono text-zinc-500 whitespace-nowrap">
