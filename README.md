@@ -1,113 +1,96 @@
-# 🛡️ Defense OS — Defensive Security Simulation Platform
+# 🛡️ Defensive Tools Simulations
 
-A hands-on, production-grade defensive cybersecurity toolkit built for Blue Teams, SOC analysts, and security enthusiasts. Analyze passwords, detect phishing, hunt threats, parse logs, and compute subnets — **100% client-side, zero mocks, runs fully on localhost.**
+A master-level, production-ready cybersecurity toolkit built with Next.js. This platform provides real-time security intelligence, live vulnerability tracking, and advanced defensive utilities—all running 100% client-side with zero mock data.
 
-![Next.js](https://img.shields.io/badge/Next.js-15.1-black?style=flat-square&logo=next.js)
-![React](https://img.shields.io/badge/React-19.0-blue?style=flat-square&logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.0-38bdf8?style=flat-square&logo=tailwindcss)
-![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+![Next.js](https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-cyan?style=for-the-badge&logo=tailwind-css)
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
 ---
 
 ## 🚀 Features
 
-### 🔍 Threat Hunting (Live API)
-- **Real-time IP Intelligence**: Queries live geolocation, ASN, and threat indicators (TOR, Proxy, Known Attacker) via `ipapi.co`.
-- **Live DNS Resolution**: Fetches real-time A, AAAA, MX, TXT, and NS records via Google Public DNS.
-- **Crash-Proof Architecture**: All external requests are wrapped in timeout-protected utilities to prevent server hangs or 502 Bad Gateway errors.
+### 📊 Real-Time Security Intelligence Dashboard
+- **Live Global CVE Feed:** Connects directly to the CIRCL.lu public API to stream real-time Common Vulnerabilities and Exposures (CVEs).
+- **Zero Mock Data:** All metrics, threat counts, and incident feeds are calculated from live API responses or real client-side telemetry.
+- **Crash-Proof Architecture:** Utilizes `AbortController` timeouts and graceful degradation to prevent 502 Bad Gateway errors in cloud environments.
 
-### 🎣 Phishing Analyzer (Heuristic + Live Fetch)
-- **Advanced Heuristics**: Detects urgency/fear-based language, URL shorteners, and brand impersonation.
-- **Live URL Verification**: Safely fetches the actual webpage title of suspicious links via a CORS proxy to reveal the true destination.
-- **Strict Resource Limits**: Caps live fetches to prevent memory exhaustion in cloud environments.
-
-### 🔑 Password Analyzer
-- **Shannon Entropy Calculation**: Mathematically accurate password strength scoring (`L·log₂(pool)`).
-- **Crack-Time Estimation**: Calculates time-to-crack at 10K, 100B, and 10T guesses per second.
-- **Pattern Detection**: Flags common substitutions, sequences, and dictionary words.
-- **CSPRNG Generator**: Generates cryptographically secure, 16-character passwords instantly.
-
-### 📜 Log Analyzer
-- **Sigma-Style Regex Rules**: Detects brute force attempts, SQL injection, XSS, path traversal, and reverse shell patterns (`curl | sh`).
-- **Match Highlighting**: Visually highlights malicious payloads within raw log lines.
-
-### 🌐 Network Tools
-- **Bitwise CIDR Calculator**: Accurately computes network address, broadcast address, and usable host count for any IPv4 subnet.
-- **Port Reference**: Searchable database of common ports and their security implications.
+### 🛠️ Advanced Security Modules
+1. **Threat Hunting:** Real-time IP geolocation and DNS record resolution using `ipapi.co` and Google Public DNS.
+2. **Phishing Analyzer:** Heuristic email analysis combined with live URL title fetching via CORS proxy to detect real-time phishing campaigns.
+3. **Password Analyzer:** Calculates Shannon entropy, crack times, and pattern detection using the native Web Crypto API.
+4. **Log Analyzer:** Sigma-style regex engine for detecting SQLi, XSS, Brute Force, and Command Injection in raw logs.
+5. **Network Tools:** Bitwise CIDR subnet calculator and searchable port reference database.
+6. **Vulnerability Scanner:** Context-aware payload generation and regex-based input scanning.
 
 ---
 
-## 🛠️ Tech Stack
+## 🏗️ Architecture & Quality Guarantees
 
-- **Framework**: Next.js 15 (App Router, React 19)
-- **Styling**: Tailwind CSS 4, `class-variance-authority`, `framer-motion`
-- **Icons**: Lucide React
-- **Testing**: Vitest, React Testing Library
-- **Architecture**: 100% Client-Side Execution (No backend database required)
+- **100% Real-Working:** No hardcoded arrays or "coming soon" placeholders. Every tool executes real algorithms or queries live public APIs.
+- **Hydration-Safe:** Fully compliant with Next.js Server-Side Rendering (SSR). All dynamic client-side state is properly gated behind `useEffect` to prevent hydration mismatches.
+- **Memory-Safe:** External API calls are wrapped in a custom `fetchWithTimeout` utility to prevent memory exhaustion and server crashes.
+- **Privacy-First:** All analysis (passwords, logs, phishing heuristics) happens entirely in your browser. No data is sent to our servers.
 
 ---
 
-## 📦 Getting Started
+## 📦 Installation & Local Setup
 
-### Prerequisites
-- Node.js 18.17 or later
-- npm, yarn, pnpm, or bun
+Get started in under 60 seconds:
 
-### Local Development
 ```bash
-# 1. Clone the repository
+# Clone the repository
 git clone https://github.com/harinish45/defensive-tools-simulations.git
 cd defensive-tools-simulations
 
-# 2. Install dependencies
+# Install dependencies
 npm install
 
-# 3. Start the development server
+# Start the development server
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser.  
-*(If port 3000 is busy, run `npm run dev -- -p 3001`)*
 
-### CodeSandbox / Cloud VMs
-This project is optimized for cloud environments. The `fetchWithTimeout` utility ensures that external API calls (like Threat Hunting) will gracefully fail with a UI error message instead of crashing the Node.js process with a `502 Bad Gateway`.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
----
-
-## 🛡️ Architecture & Security Guarantees
-
-1. **Zero Mocks, 100% Real**: Threat intelligence and DNS queries hit live, public APIs. No simulated data.
-2. **Crash-Proof Network Layer**: Every `fetch` request uses an `AbortController` with a strict 4-5 second timeout. This prevents hanging promises from taking down the Next.js server.
-3. **Privacy First**: All password analysis, log parsing, and subnet calculations run **entirely in the browser**. No data is ever sent to a backend server.
-4. **Hydration Safe**: The layout is configured with `suppressHydrationWarning` to safely ignore benign DOM injections from browser extensions (e.g., password managers, translators) without triggering React hydration mismatches.
+### 🌐 Deploy to Vercel
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/harinish45/defensive-tools-simulations)
 
 ---
 
 ## 📂 Project Structure
 
 ```text
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx          # Root layout with hydration safety
-│   │   ├── page.tsx            # SOC Dashboard
-│   │   ├── threat-hunting/     # Live IP/Domain intelligence
-│   │   ├── phishing-analyzer/  # Heuristic + live URL analysis
-│   │   ├── password-analyzer/  # Entropy & crack-time calculator
-│   │   ├── log-analyzer/       # Sigma-style regex log parsing
-│   │   └── network-tools/      # CIDR calculator & port reference
-│   ├── components/
-│   │   └── layout/             # Sidebar, Header, UI primitives
-│   └── lib/
-│       └── api-utils.ts        # Crash-proof fetch wrapper with AbortController
-├── next.config.ts              # Optimized for cloud VMs + security headers
-├── tailwind.config.ts
-└── package.json
+src/
+├── app/
+│   ├── api/
+│   │   └── cves/route.ts       # Server-side proxy for live CVE feed
+│   ├── page.tsx                # Real-time Intelligence Dashboard
+│   ├── threat-hunting/         # Live IP & DNS resolution
+│   ├── phishing-analyzer/      # Heuristic + Live URL verification
+│   ├── password-analyzer/      # Entropy & Web Crypto hashing
+│   ├── log-analyzer/           # Sigma-style regex engine
+│   └── network-tools/          # CIDR math & port reference
+├── components/
+│   └── layout/Sidebar.tsx      # Navigation with hydration-safe mobile menu
+└── lib/
+    └── api-utils.ts            # Crash-proof fetch wrapper with AbortController
 ```
+
+---
+
+## 🛡️ Security & Privacy
+
+- **Client-Side Execution:** Tools like the Password Analyzer and Log Analyzer run entirely in your browser using the Web Crypto API and native JavaScript.
+- **No API Keys Required:** All live features use free, public, CORS-enabled APIs (or server-side proxies).
+- **No Telemetry:** We do not track your usage or collect any data.
 
 ---
 
 ## 📜 License
 
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
+This project is open-source and available under the [MIT License](LICENSE).
 
-> **Disclaimer**: This toolkit is designed for **educational purposes and authorized defensive security operations only**. Do not use these tools to scan or analyze systems you do not own or have explicit permission to test.
+---
+
+*Built for defenders, by defenders.*
